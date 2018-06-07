@@ -37,7 +37,7 @@ func signalError(c chan<- error, err error) {
 	}
 }
 
-func openConnection(uri *url.URL, tlsc *tls.Config, timeout time.Duration) (net.Conn, error) {
+func openConnection(uri *url.URL, tlsc *tls.Config, opts ClientOptions) (net.Conn, error) {
 	switch uri.Scheme {
 	case "ws":
 		conn, err := websocket.Dial(uri.String(), "mqtt", fmt.Sprintf("http://%s", uri.Host))
@@ -47,7 +47,8 @@ func openConnection(uri *url.URL, tlsc *tls.Config, timeout time.Duration) (net.
 		conn.PayloadType = websocket.BinaryFrame
 		return conn, err
 	case "wss":
-		config, _ := websocket.NewConfig(uri.String(), fmt.Sprintf("https://%s", uri.Host))
+		config, _ := websocket.NewConfig(uri.String(), fmt.Sprintf("https://%s/%s", uri.Host, uri.Path))
+		config.Header = opts.Header
 		config.Protocol = []string{"mqtt"}
 		config.TlsConfig = tlsc
 		conn, err := websocket.DialConfig(config)
@@ -59,7 +60,7 @@ func openConnection(uri *url.URL, tlsc *tls.Config, timeout time.Duration) (net.
 	case "tcp":
 		allProxy := os.Getenv("all_proxy")
 		if len(allProxy) == 0 {
-			conn, err := net.DialTimeout("tcp", uri.Host, timeout)
+			conn, err := net.DialTimeout("tcp", uri.Host, opts.ConnectTimeout)
 			if err != nil {
 				return nil, err
 			}
@@ -73,7 +74,7 @@ func openConnection(uri *url.URL, tlsc *tls.Config, timeout time.Duration) (net.
 		}
 		return conn, nil
 	case "unix":
-		conn, err := net.DialTimeout("unix", uri.Host, timeout)
+		conn, err := net.DialTimeout("unix", uri.Host, opts.ConnectTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +86,7 @@ func openConnection(uri *url.URL, tlsc *tls.Config, timeout time.Duration) (net.
 	case "tcps":
 		allProxy := os.Getenv("all_proxy")
 		if len(allProxy) == 0 {
-			conn, err := tls.DialWithDialer(&net.Dialer{Timeout: timeout}, "tcp", uri.Host, tlsc)
+			conn, err := tls.DialWithDialer(&net.Dialer{Timeout: opts.ConnectTimeout}, "tcp", uri.Host, tlsc)
 			if err != nil {
 				return nil, err
 			}
